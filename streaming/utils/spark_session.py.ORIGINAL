@@ -1,0 +1,50 @@
+"""
+SPARK SESSION CONFIGURATION
+"""
+
+from pyspark.sql import SparkSession
+import os
+
+
+def get_spark_session(app_name: str = "EcommerceStreaming") -> SparkSession:
+    """Create Spark session with Delta Lake and Kafka support"""
+    
+    # Set environment variable for package resolution
+    # os.environ['PYSPARK_SUBMIT_ARGS'] = '--packages io.delta:delta-core_2.12:3.0.0,org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 pyspark-shell'
+
+    os.environ['PYSPARK_SUBMIT_ARGS'] = (
+    '--packages '
+    'io.delta:delta-spark_2.12:3.0.0,'
+    'org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0 '
+    'pyspark-shell'
+)
+
+    
+    spark = (SparkSession.builder
+        .appName(app_name)
+        
+        # Delta Lake configuration
+        .config("spark.sql.extensions", "io.delta.sql.DeltaSparkSessionExtension")
+        .config("spark.sql.catalog.spark_catalog", "org.apache.spark.sql.delta.catalog.DeltaCatalog")
+        
+        # Memory and performance
+        .config("spark.driver.memory", "2g")
+        .config("spark.executor.memory", "2g")
+        .config("spark.sql.shuffle.partitions", "4")
+        
+        # Local mode
+        .master("local[*]")
+        .getOrCreate()
+    )
+    
+    spark.sparkContext.setLogLevel("WARN")
+    print(f"✓ Spark {spark.version} session: {app_name}")
+    
+    return spark
+
+
+def stop_spark_session(spark: SparkSession):
+    """Stop Spark session gracefully"""
+    if spark:
+        spark.stop()
+        print("✓ Spark stopped")

@@ -1,0 +1,25 @@
+# ================================================================================
+# REQUIREMENTS-DEV.TXT - DEVELOPMENT TOOLS
+# ================================================================================
+#
+# Tools for testing, linting, formatting, and debugging
+#
+# INSTALL WITH:
+#   uv pip install -r requirements-dev.txt
+#
+# ================================================================================
+
+# === TESTING ===
+pytest>=7.4.3
+pytest-cov>=4.1.0
+pytest-mock>=3.12.0
+
+# === CODE QUALITY ===
+black>=23.12.1          # Code formatter
+flake8>=7.0.0           # Linter
+isort>=5.13.2           # Import sorter
+mypy>=1.7.1             # Type checker
+
+# === DEBUGGING ===
+ipython>=8.18.1         # Enhanced Python shell
+ipdb>=0.13.13           # IPython debugger

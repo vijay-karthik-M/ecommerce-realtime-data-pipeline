@@ -1,0 +1,91 @@
+
+# OPTIMIZED FOR 8GB RAM LAPTOPS
+# Total Docker memory limit: ~2GB (leaves 6GB for OS + Spark)
+
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      # MEMORY OPTIMIZATION
+      KAFKA_HEAP_OPTS: "-Xms128m -Xmx256m"  # Was 512m
+    deploy:
+      resources:
+        limits:
+          memory: 300M  # Hard limit
+        reservations:
+          memory: 128M
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      # MEMORY OPTIMIZATION
+      KAFKA_HEAP_OPTS: "-Xms256m -Xmx512m"  # Was 1g
+      # Reduce log retention
+      KAFKA_LOG_RETENTION_HOURS: 24  # Was 168 (7 days)
+      KAFKA_LOG_SEGMENT_BYTES: 52428800  # 50MB (was 1GB)
+    deploy:
+      resources:
+        limits:
+          memory: 600M  # Hard limit
+        reservations:
+          memory: 256M
+
+  postgres:
+    image: postgres:15-alpine  # Alpine = smaller image
+    environment:
+      POSTGRES_DB: analytics
+      POSTGRES_USER: dataeng
+      POSTGRES_PASSWORD: dataeng123
+      # MEMORY OPTIMIZATION
+      POSTGRES_SHARED_BUFFERS: 128MB  # Was 256MB
+      POSTGRES_EFFECTIVE_CACHE_SIZE: 256MB  # Was 1GB
+      POSTGRES_WORK_MEM: 4MB  # Was 16MB
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    deploy:
+      resources:
+        limits:
+          memory: 400M  # Hard limit
+        reservations:
+          memory: 128M
+
+  grafana:
+    image: grafana/grafana:10.0.0-ubuntu  # Latest stable
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+      GF_INSTALL_PLUGINS: ""  # Don't auto-install plugins
+      # MEMORY OPTIMIZATION
+      GF_DATABASE_TYPE: sqlite3  # Use SQLite instead of PostgreSQL
+    volumes:
+      - grafana-data:/var/lib/grafana
+    deploy:
+      resources:
+        limits:
+          memory: 300M  # Hard limit
+        reservations:
+          memory: 100M
+
+volumes:
+  postgres-data:
+  grafana-data:
+
+# TOTAL DOCKER MEMORY: ~1.6GB
+# Leaves ~6.4GB for OS (2GB) + Spark (2-3GB) + Browser (1GB)

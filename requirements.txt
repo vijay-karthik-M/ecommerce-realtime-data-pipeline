@@ -1,0 +1,66 @@
+# ================================================================================
+# REQUIREMENTS.TXT - SIMPLE DEPENDENCY LIST
+# ================================================================================
+#
+# WHY THIS FILE?
+# Since our project is script-based (not a package), a simple requirements.txt
+# is actually easier and more straightforward than pyproject.toml
+#
+# INSTALL WITH:
+#   uv pip install -r requirements.txt
+#
+# ================================================================================
+
+# === KAFKA & STREAMING ===
+kafka-python>=2.0.2
+
+# === DATABASE & STORAGE ===
+psycopg2-binary>=2.9.9
+sqlalchemy>=2.0.23
+
+# === DATA PROCESSING ===
+pandas>=2.1.4
+numpy>=1.26.2
+faker>=21.0.0
+pyyaml>=6.0.1
+
+# === UTILITIES ===
+python-dotenv>=1.0.0
+requests>=2.31.0
+click>=8.1.7
+rich>=13.7.0
+tabulate==0.9.0
+
+# === DATA QUALITY ===
+great-expectations>=0.18.8
+
+# === MONITORING ===
+prometheus-client>=0.19.0
+grafana-api==1.0.3
+
+# === DATE/TIME ===
+python-dateutil>=2.8.2
+pytz>=2023.3
+
+# === DEVELOPMENT TOOLS (optional - install separately if needed) ===
+# pytest>=7.4.3
+# pytest-cov>=4.1.0
+# black>=23.12.1
+# flake8>=7.0.0
+# isort>=5.13.2
+# ipython>=8.18.1
+
+
+# Airflow
+apache-airflow>=3.0.0
+apache-airflow-providers-apache-spark==4.3.0
+
+# Testing
+pytest==7.4.3
+pytest-cov==4.1.0
+
+# Code Quality
+black==23.11.0
+flake8==6.1.0
+isort==5.12.0
+

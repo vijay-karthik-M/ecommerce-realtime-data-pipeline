@@ -1,0 +1,22 @@
+# ================================================================================
+# REQUIREMENTS-SPARK.TXT - APACHE SPARK DEPENDENCIES
+# ================================================================================
+#
+# WARNING: Large download (~500MB)
+# Only install when you're ready to work with Spark (Week 3-4)
+#
+# INSTALL WITH:
+#   uv pip install -r requirements-spark.txt
+#
+# ================================================================================
+
+# === SPARK ===
+pyspark==3.5.0
+
+# === DELTA LAKE ===
+delta-spark==3.0.0
+
+# Note: These will pull in many dependencies including:
+# - py4j (Java-Python bridge)
+# - pyarrow (Arrow data format)
+# - Additional libraries

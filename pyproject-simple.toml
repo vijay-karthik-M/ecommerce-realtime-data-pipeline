@@ -1,0 +1,117 @@
+# ================================================================================
+# PROJECT CONFIGURATION - SIMPLIFIED FOR SCRIPT-BASED PROJECT
+# ================================================================================
+#
+# This project is organized as scripts/modules rather than a traditional package.
+# We use setuptools (simpler) instead of hatchling for this structure.
+#
+# ================================================================================
+
+[project]
+name = "ecommerce-streaming-platform"
+version = "0.1.0"
+description = "Real-time e-commerce analytics platform with Kafka, Spark, and Delta Lake"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+
+dependencies = [
+    # === KAFKA & STREAMING ===
+    "kafka-python>=2.0.2",
+    
+    # === DATABASE & STORAGE ===
+    "psycopg2-binary>=2.9.9",
+    "sqlalchemy>=2.0.23",
+    
+    # === DATA PROCESSING ===
+    "pandas>=2.1.4",
+    "numpy>=1.26.2",
+    "faker>=21.0.0",
+    "pyyaml>=6.0.1",
+    
+    # === UTILITIES ===
+    "python-dotenv>=1.0.0",
+    "requests>=2.31.0",
+    "click>=8.1.7",
+    "rich>=13.7.0",
+    
+    # === DATA QUALITY ===
+    "great-expectations>=0.18.8",
+    
+    # === MONITORING ===
+    "prometheus-client>=0.19.0",
+    
+    # === DATE/TIME ===
+    "python-dateutil>=2.8.2",
+    "pytz>=2023.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.3",
+    "pytest-cov>=4.1.0",
+    "pytest-mock>=3.12.0",
+    "black>=23.12.1",
+    "flake8>=7.0.0",
+    "isort>=5.13.2",
+    "mypy>=1.7.1",
+    "ipython>=8.18.1",
+    "ipdb>=0.13.13",
+]
+
+spark = [
+    "pyspark>=3.5.0",
+    "delta-spark>=3.0.0",
+]
+
+all = [
+    "ecommerce-streaming-platform[dev,spark]"
+]
+
+# ================================================================================
+# BUILD SYSTEM - Using setuptools (simpler for scripts)
+# ================================================================================
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# Tell setuptools this is a flat layout (scripts, not packages)
+[tool.setuptools]
+py-modules = []
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = []
+
+# ================================================================================
+# TOOL CONFIGURATIONS
+# ================================================================================
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311']
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+
+# ================================================================================
+# USAGE - MUCH SIMPLER NOW!
+# ================================================================================
+#
+# INSTALL DEPENDENCIES ONLY (no package build needed):
+#   uv pip install kafka-python psycopg2-binary requests faker pandas numpy
+#   uv pip install great-expectations prometheus-client sqlalchemy
+#   uv pip install python-dotenv pyyaml click rich python-dateutil pytz
+#
+# OR INSTALL FROM THIS FILE:
+#   uv pip install -r <(python -c "import tomllib; import sys; f=open('pyproject.toml','rb'); d=tomllib.load(f); print('\n'.join(d['project']['dependencies']))")
+#
+# OR USE THE SIMPLER REQUIREMENTS.TXT APPROACH (see below)
+#
+# ================================================================================

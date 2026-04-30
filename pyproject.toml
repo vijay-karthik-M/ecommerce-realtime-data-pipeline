@@ -1,0 +1,230 @@
+# ================================================================================
+# PROJECT CONFIGURATION FOR UV PACKAGE MANAGER
+# ================================================================================
+#
+# WHY pyproject.toml?
+# - Modern Python standard (PEP 518)
+# - Single source of truth for dependencies
+# - Works with UV, pip, poetry, etc.
+# - Reproducible builds
+#
+# UV ADVANTAGES:
+# - 10-100x faster than pip
+# - Better dependency resolution
+# - Lock files for exact reproducibility
+# - Built in Rust for performance
+#
+# ================================================================================
+
+[project]
+name = "ecommerce-streaming-platform"
+version = "0.1.0"
+description = "Real-time e-commerce analytics platform with Kafka, Spark, and Delta Lake"
+readme = "README.md"
+requires-python = ">=3.9"
+license = {text = "MIT"}
+authors = [
+    {name = "Your Name", email = "your.email@example.com"}
+]
+
+# ================================================================================
+# DEPENDENCIES
+# ================================================================================
+#
+# ORGANIZED BY PURPOSE:
+# 1. Kafka & Streaming
+# 2. Database & Storage
+# 3. Data Processing
+# 4. Data Quality
+# 5. Monitoring & Observability
+# 6. Testing & Development
+#
+# WHY THESE VERSIONS?
+# - Latest stable releases as of early 2024
+# - Tested for compatibility
+# - Production-ready
+#
+# ================================================================================
+
+dependencies = [
+    # === KAFKA & STREAMING ===
+    "kafka-python>=2.0.2",          # Kafka client for Python
+    # WHY? Industry standard, mature, well-documented
+    
+    # === DATABASE & STORAGE ===
+    "psycopg2-binary>=2.9.9",       # PostgreSQL adapter
+    # WHY psycopg2-binary? Includes compiled C libraries (no PostgreSQL dev tools needed)
+    
+    "sqlalchemy>=2.0.23",           # SQL toolkit and ORM
+    # WHY? Easier database operations, connection pooling
+    
+    # === DATA PROCESSING ===
+    "pandas>=2.1.4",                # Data manipulation
+    "numpy>=1.26.2",                # Numerical computing
+    # WHY? Data transformations, analysis
+    
+    "faker>=21.0.0",                # Generate fake data
+    # WHY? Realistic synthetic data generation
+    
+    "pyyaml>=6.0.1",                # YAML parser
+    # WHY? Configuration files
+    
+    # === UTILITIES ===
+    "python-dotenv>=1.0.0",         # Environment variable management
+    # WHY? Keep secrets out of code
+    
+    "requests>=2.31.0",             # HTTP library
+    # WHY? API calls, health checks
+    
+    "click>=8.1.7",                 # CLI framework
+    # WHY? Build command-line tools
+    
+    "rich>=13.7.0",                 # Beautiful terminal output
+    # WHY? Better logging, progress bars, tables
+    
+    # === DATA QUALITY ===
+    "great-expectations>=0.18.8",   # Data validation framework
+    # WHY? Production-grade data quality checks
+    
+    # === MONITORING ===
+    "prometheus-client>=0.19.0",    # Prometheus metrics
+    # WHY? Expose metrics for monitoring
+    
+    # === DATE/TIME ===
+    "python-dateutil>=2.8.2",       # Date utilities
+    "pytz>=2023.3",                 # Timezone support
+]
+
+# ================================================================================
+# OPTIONAL DEPENDENCIES (Install with: uv pip install -e ".[dev]")
+# ================================================================================
+
+[project.optional-dependencies]
+dev = [
+    # === TESTING ===
+    "pytest>=7.4.3",                # Testing framework
+    "pytest-cov>=4.1.0",            # Coverage reporting
+    "pytest-mock>=3.12.0",          # Mocking framework
+    
+    # === CODE QUALITY ===
+    "black>=23.12.1",               # Code formatter
+    "flake8>=7.0.0",                # Linter
+    "isort>=5.13.2",                # Import sorter
+    "mypy>=1.7.1",                  # Type checker
+    
+    # === DOCUMENTATION ===
+    "mkdocs>=1.5.3",                # Documentation generator
+    "mkdocs-material>=9.5.3",       # Material theme for docs
+    
+    # === DEBUGGING ===
+    "ipython>=8.18.1",              # Enhanced Python shell
+    "ipdb>=0.13.13",                # IPython debugger
+]
+
+spark = [
+    # === SPARK (Heavy dependency - install only when needed) ===
+    "pyspark>=3.5.0",               # Apache Spark
+    "delta-spark>=3.0.0",           # Delta Lake for Spark
+    # NOTE: These are large downloads (~500MB)
+    # Install with: uv pip install -e ".[spark]"
+]
+
+airflow = [
+    # === AIRFLOW (Very heavy - install separately) ===
+    # "apache-airflow>=2.8.0",        # Workflow orchestration
+    # NOTE: Airflow is 1GB+ with dependencies
+    # We'll run Airflow in Docker, not locally
+    # Only install if you want to develop Airflow DAGs locally
+]
+
+all = [
+    # Install everything
+    "ecommerce-streaming-platform[dev,spark]"  # Removed airflow due to dependency conflict
+]
+
+# ================================================================================
+# BUILD SYSTEM
+# ================================================================================
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+# Tell setuptools to discover packages automatically
+py-modules = []  # We'll use scripts, not packages for now
+
+[tool.setuptools.packages.find]
+# Don't look for packages - this is a scripts project
+where = ["."]
+include = []
+
+# ================================================================================
+# TOOL CONFIGURATIONS
+# ================================================================================
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311']
+include = '\.pyi?$'
+extend-exclude = '''
+/(
+  # directories
+  \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | build
+  | dist
+)/
+'''
+
+[tool.isort]
+profile = "black"
+line_length = 100
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --strict-markers --cov=. --cov-report=term-missing"
+testpaths = ["tests"]
+pythonpath = ["."]
+
+# ================================================================================
+# USAGE INSTRUCTIONS
+# ================================================================================
+#
+# BASIC INSTALLATION:
+#   uv pip install -e .
+#
+# WITH DEVELOPMENT TOOLS:
+#   uv pip install -e ".[dev]"
+#
+# WITH SPARK:
+#   uv pip install -e ".[dev,spark]"
+#
+# SYNC DEPENDENCIES (after modifying this file):
+#   uv pip sync
+#
+# UPDATE ALL PACKAGES:
+#   uv pip install --upgrade -e ".[dev]"
+#
+# FREEZE EXACT VERSIONS:
+#   uv pip freeze > requirements.txt
+#
+# CREATE LOCK FILE:
+#   uv pip compile pyproject.toml -o requirements.lock
+#
+# ================================================================================

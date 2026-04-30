@@ -1,0 +1,359 @@
+# ================================================================================
+# DOCKER COMPOSE CONFIGURATION FOR E-COMMERCE ANALYTICS PLATFORM
+# ================================================================================
+#
+# This file defines all services needed for our data platform.
+# Each service runs in its own container (isolated environment).
+#
+# WHY DOCKER COMPOSE?
+# - Single command to start everything: docker-compose up
+# - Services can communicate via service names (e.g., kafka:9092)
+# - Easy to scale, modify, or remove services
+# - Version controlled - anyone can replicate your environment
+#
+# SERVICES OVERVIEW:
+# 1. Zookeeper - Coordinates Kafka brokers (required for Kafka)
+# 2. Kafka - Message broker for real-time events
+# 3. PostgreSQL - Stores final analytics tables
+# 4. Grafana - Visualization and monitoring dashboards
+# 5. Prometheus - Metrics collection (will add later)
+#
+# ================================================================================
+
+#version: '3.8'
+
+# Networks allow containers to communicate
+# Think of it as a virtual LAN for your containers
+networks:
+  data-platform:
+    driver: bridge
+    # WHY bridge network? Containers can reference each other by service name
+
+# Volumes persist data even when containers are destroyed
+# Without volumes, all data is lost when you stop containers
+volumes:
+  zookeeper-data:
+    # Stores Zookeeper's state
+  kafka-data:
+    # Stores Kafka messages (event log)
+  postgres-data:
+    # Stores PostgreSQL database files
+  grafana-data:
+    # Stores Grafana dashboards and configurations
+
+services:
+  # ================================================================================
+  # ZOOKEEPER - Kafka's Coordination Service
+  # ================================================================================
+  #
+  # WHAT IS ZOOKEEPER?
+  # - Distributed coordination service
+  # - Keeps track of which Kafka brokers are alive
+  # - Manages Kafka cluster metadata
+  # - Required for Kafka to function (legacy requirement)
+  #
+  # NOTE: Newer Kafka versions (KRaft mode) don't need Zookeeper,
+  # but we're using traditional setup for compatibility
+  #
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    # WHY Confluent image? Industry standard, well-maintained, production-ready
+    
+    container_name: zookeeper
+    # Named container makes it easy to reference in logs: docker logs zookeeper
+    
+    networks:
+      - data-platform
+    
+    ports:
+      - "2181:2181"
+      # Port mapping: host:container
+      # You can access Zookeeper from your machine at localhost:2181
+    
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      # Port where clients (Kafka) connect
+      
+      ZOOKEEPER_TICK_TIME: 2000
+      # Basic time unit in milliseconds for heartbeats
+      # WHY 2000ms? Standard setting, balances responsiveness vs network load
+      
+      ZOOKEEPER_LOG4J_ROOT_LOGLEVEL: WARN
+      # Reduce log verbosity (DEBUG too noisy, WARN catches issues)
+    
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper/data
+      # Persist Zookeeper data
+    
+    healthcheck:
+      # Checks if Zookeeper is healthy (accepting connections)
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      # nc (netcat) checks if port 2181 is open
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      # WHY healthcheck? Other services wait for Zookeeper before starting
+
+  # ================================================================================
+  # KAFKA - Distributed Message Broker
+  # ================================================================================
+  #
+  # WHAT IS KAFKA?
+  # - Distributed event streaming platform
+  # - Stores events in topics (like database tables for events)
+  # - Guarantees durability, ordering, and scalability
+  # - Core of our real-time pipeline
+  #
+  # KEY CONCEPTS:
+  # - Topic: Category of events (e.g., "clickstream", "transactions")
+  # - Partition: Topics split into partitions for parallelism
+  # - Producer: Writes events to Kafka
+  # - Consumer: Reads events from Kafka
+  # - Offset: Position in the event log
+  #
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+      # WAIT for Zookeeper to be healthy before starting Kafka
+      # WHY? Kafka can't start without Zookeeper
+    
+    networks:
+      - data-platform
+    
+    ports:
+      - "9092:9092"
+      # External clients connect here (your Python scripts)
+      - "9093:9093"
+      # Internal communication between brokers (not used in single-broker setup)
+    
+    environment:
+      # ---- ZOOKEEPER CONNECTION ----
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      # Connect to Zookeeper using service name (Docker DNS)
+      
+      # ---- BROKER CONFIGURATION ----
+      KAFKA_BROKER_ID: 1
+      # Unique ID for this Kafka broker (we have only 1, but required field)
+      
+      # ---- LISTENERS ----
+      # This is CRITICAL and confusing - pay attention!
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,PLAINTEXT_INTERNAL://0.0.0.0:9093
+      # Kafka listens on these addresses INSIDE the container
+      # 0.0.0.0 means "all network interfaces"
+      
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,PLAINTEXT_INTERNAL://kafka:9093
+      # Kafka ADVERTISES these addresses to clients
+      # localhost:9092 - for scripts running on your machine
+      # kafka:9093 - for services inside Docker (like Spark)
+      
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      # Maps listener names to security protocols (we use no security = PLAINTEXT)
+      # In production, you'd use SASL_SSL for encryption
+      
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      # Which listener brokers use to talk to each other
+      
+      # ---- REPLICATION & OFFSETS ----
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      # How many copies of offset data (1 = no redundancy)
+      # WHY 1? We have only 1 broker. Production uses 3 for fault tolerance
+      
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      # Transaction log settings (for exactly-once semantics)
+      
+      # ---- RETENTION ----
+      KAFKA_LOG_RETENTION_HOURS: 168
+      # Keep messages for 168 hours (7 days)
+      # WHY 7 days? Balances storage cost vs ability to replay events
+      # Can replay last week's data if needed
+      
+      KAFKA_LOG_RETENTION_BYTES: 1073741824
+      # Max 1GB per partition (then oldest messages deleted)
+      # WHY? Prevents disk from filling up
+      
+      # ---- PERFORMANCE ----
+      KAFKA_NUM_PARTITIONS: 3
+      # Default partitions for new topics
+      # WHY 3? Allows parallel processing by 3 consumers
+      # More partitions = more parallelism but more overhead
+      
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+      # Auto-create topics when first message sent
+      # WHY true? Convenient for development
+      # Production: false (explicit topic creation with proper config)
+      
+      # ---- LOGGING ----
+      KAFKA_LOG4J_ROOT_LOGLEVEL: WARN
+      KAFKA_LOG4J_LOGGERS: "kafka.controller=WARN,kafka.producer.async.DefaultEventHandler=WARN,state.change.logger=WARN"
+    
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+      # Persist Kafka event logs
+      # This is your "event store" - all messages stored here
+    
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      # Checks if Kafka broker is responding to API requests
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+      # WHY start_period? Kafka takes ~30s to fully start
+
+  # ================================================================================
+  # POSTGRESQL - Analytics Database
+  # ================================================================================
+  #
+  # WHAT IS POSTGRESQL?
+  # - Open-source relational database
+  # - ACID compliant (data integrity)
+  # - Powerful SQL engine for complex queries
+  # - Where our final "Gold" layer data lives
+  #
+  # WHY POSTGRES?
+  # - Analysts can query with SQL
+  # - Great for joins, aggregations, window functions
+  # - Integrates with BI tools (Grafana, Superset, Tableau)
+  # - Free and battle-tested
+  #
+  postgres:
+    image: postgres:15-alpine
+    # Alpine = lightweight version (smaller image size)
+    
+    container_name: postgres
+    networks:
+      - data-platform
+    
+    ports:
+      - "5432:5432"
+      # Standard PostgreSQL port
+    
+    environment:
+      POSTGRES_DB: analytics
+      # Database name - where we'll create our tables
+      
+      POSTGRES_USER: dataeng
+      # Username for connections
+      
+      POSTGRES_PASSWORD: dataeng123
+      # Password (use secrets manager in production!)
+      
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+      # Initialize database with UTF-8 encoding (support all characters)
+    
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      # Persist database files
+      
+      - ./init-scripts:/docker-entrypoint-initdb.d
+      # Any .sql files here run on first startup
+      # We'll use this to create initial tables
+    
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dataeng -d analytics"]
+      # Checks if Postgres is accepting connections
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ================================================================================
+  # GRAFANA - Visualization & Monitoring
+  # ================================================================================
+  #
+  # WHAT IS GRAFANA?
+  # - Open-source analytics and monitoring platform
+  # - Creates beautiful dashboards from time-series data
+  # - Connects to multiple data sources (Postgres, Prometheus, etc.)
+  # - Critical for observability
+  #
+  # WHY GRAFANA?
+  # - See pipeline health in real-time
+  # - Alert when things go wrong
+  # - Impress interviewers with professional dashboards
+  #
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: grafana
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+      # Wait for Postgres (we'll connect Grafana to it)
+    
+    networks:
+      - data-platform
+    
+    ports:
+      - "3000:3000"
+      # Access Grafana UI at http://localhost:3000
+    
+    environment:
+      # ---- ADMIN CREDENTIALS ----
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin123
+      # Login: admin / admin123
+      # Change in production!
+      
+      # ---- SETTINGS ----
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      # Disable public signups
+      
+      GF_SERVER_ROOT_URL: http://localhost:3000
+      # Base URL for Grafana
+      
+      # GF_INSTALL_PLUGINS: grafana-clock-panel,grafana-simple-json-datasource
+      # Install useful plugins on startup (disabled - requires internet access)
+    
+    volumes:
+      - grafana-data:/var/lib/grafana
+      # Persist dashboards and settings
+      
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      # Auto-provision dashboards and data sources
+      # We'll add these later
+    
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# ================================================================================
+# NOTES FOR DAY 1
+# ================================================================================
+#
+# STARTING SERVICES:
+#   docker-compose up -d          # Start in background
+#   docker-compose up             # Start with logs in foreground
+#
+# CHECKING STATUS:
+#   docker-compose ps             # List running containers
+#   docker-compose logs kafka     # View Kafka logs
+#   docker-compose logs -f kafka  # Follow Kafka logs (live)
+#
+# STOPPING SERVICES:
+#   docker-compose stop           # Stop but keep data
+#   docker-compose down           # Stop and remove containers
+#   docker-compose down -v        # Stop, remove containers AND volumes (fresh start)
+#
+# DEBUGGING:
+#   docker exec -it kafka bash    # Get shell inside Kafka container
+#   docker stats                  # See resource usage
+#
+# COMMON ISSUES:
+# 1. Port already in use: Another service using that port
+#    Solution: Stop that service or change port in docker-compose.yml
+#
+# 2. Containers keep restarting: Check logs with docker-compose logs
+#    Usually config error or port conflict
+#
+# 3. Can't connect from Python: Make sure using localhost:9092 (not kafka:9092)
+#    localhost = from your machine
+#    kafka:9092 = from inside Docker network
+#
+# ================================================================================
