@@ -21,6 +21,7 @@ sqlalchemy>=2.0.23
 # === DATA PROCESSING ===
 pandas>=2.1.4
 numpy>=1.26.2
+pyarrow>=12.0.0  # Required for pandas parquet support
 faker>=21.0.0
 pyyaml>=6.0.1
 
